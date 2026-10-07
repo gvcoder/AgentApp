@@ -197,25 +197,51 @@ export function checkSafetyGuardrails(text: string): { safe: boolean; reason?: s
   return { safe: true };
 }
 
-// Simulated persona response generation based on Persona Prompt & Tone
+const BACKEND_API_URL = process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:4000';
+
+// Generate Persona AI response via server-side OpenAI Agent endpoint (with safe fallback)
 export async function generateAgentResponse(
   persona: AgentPersona,
   userMessage: string,
-  history: ChatMessage[]
+  history: ChatMessage[],
+  roomId?: string
 ): Promise<string> {
-  // Step 1: Safety Guardrails Check
+  // Step 1: Client-Side Safety Guardrails Check
   const safety = checkSafetyGuardrails(userMessage);
   if (!safety.safe) {
     return `🛡️ [Guardrail Warning]: ${safety.reason}\n\nI am configured with strict safety policies to keep all discussions educational, constructive, and respectful.`;
   }
 
-  // Simulate network/AI server-side processing latency
+  // Step 2: Try dispatching to Server-side OpenAI Agent API
+  try {
+    const response = await fetch(`${BACKEND_API_URL}/api/chat/agent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        persona,
+        message: userMessage,
+        history,
+        roomId,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.reply) {
+        return data.reply;
+      }
+    }
+  } catch (backendError) {
+    // Graceful offline/local fallback if server is not yet started
+    console.log('Backend not reachable, executing local persona simulation:', backendError);
+  }
+
+  // Step 3: Local persona response simulation fallback
   await new Promise((r) => setTimeout(r, 600 + Math.random() * 600));
 
   const roleLower = persona.role.toLowerCase();
-  const qLower = userMessage.toLowerCase();
 
-  // Persona-tailored responses for demonstration
+  // Persona-tailored responses
   if (roleLower.includes('physics')) {
     return `⚛️ [${persona.name} - Physics]:\n\nRegarding "${userMessage}":\nFrom first principles, let's break this down. In classical mechanics and quantum behavior, we observe conservation laws: energy and momentum dictate the outcome. To visualize this, imagine particles exchanging bosons or a harmonic oscillator reaching equilibrium.\n\nKey formula to recall: F = dp/dt or E = mc².\nDoes that give you an intuitive conceptual grasp?`;
   }
@@ -238,7 +264,6 @@ export async function generateAgentResponse(
   } else if (persona.tone === 'creative') {
     return `✨ [${persona.name}]: Imagine this: ${getDynamicAnswer(userMessage, persona)}! We can shape this in vibrant, unexpected ways.`;
   } else {
-    // Professional / Friendly
     return `👋 [${persona.name}]: ${getDynamicAnswer(userMessage, persona)}\n\nI am tailored with the role of "${persona.role}". Let me know what step we should tackle next!`;
   }
 }

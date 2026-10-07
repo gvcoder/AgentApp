@@ -72,9 +72,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     setIsTyping(true);
 
     try {
-      // Simulate/Generate AI persona response
-      const responseText = await generateAgentResponse(agent, text, [...messages, userMsg]);
+      // Execute persona agent response (via OpenAI Agent server or offline persona loop)
+      const responseText = await generateAgentResponse(agent, text, [...messages, userMsg], roomId);
       await saveMessage({
+        roomId,
         conversationId: `${user.uid}_${agent.id}`,
         agentId: agent.id,
         userId: user.uid,
